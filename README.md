@@ -37,51 +37,151 @@ GET usuario:1
 
 em uma sessão posterior vou definir com mais calma os contratos de cada requisito funcional
 
-## Contratos para cada requisito funcional
+### Premissas comuns dos contratos
 
-Listando os requisitos:
-- SET chave valor -> cria e armazena um valor associado a uma chave
-- GET chave -> recupera o valor associado à chave
-- DEL chave -> remove a chave existente
-- EXISTS chave -> verifica se uma chave existe
+Na versão 1, chaves e valores são strings UTF-8. A chave é obrigatória, não pode ser vazia e diferencia letras maiúsculas de minúsculas. O valor pode ser uma string vazia.
+
+Cada comando é executado atomicamente: nenhum outro cliente pode observar um estado intermediário da operação.
+
+Comandos com quantidade incorreta de argumentos ou argumentos inválidos retornam um erro explícito e não alteram o armazenamento.
+
+Os limites máximos de tamanho de chave e valor deverão ser definidos junto com o protocolo, antes da implementação.
 
 ### RF-01 — SET chave valor
 
-1. Descrição
-O comando tem a função de criar uma relação entre uma chave e um valor
+**Descrição**
 
-2. Entrada
-Recebe valor
+Associa o valor informado à chave informada.
 
-| Parâmetro | Tipo | Obrigatório | Descrição |
-|valor|string|true|valor a ser associado a uma chave|
-| | | | |
+**Entrada**
 
-3. Pré-condições
-- valor não pode ser nulo, 
-- valor deve ser uma string, -
-- não deve existir uma chave já atribuída a aquele valor 
+Recebe uma chave e um valor, ambos fornecidos pelo cliente.
 
-4. Pós-condições
-- caso o valor não tenha uma chave associada, deve retornar uma tupla {chave: valor}
-- caso o valor já tenha uma chave associada, deve retornar um erro
+**Pré-condições**
 
-5. Resposta
-- **Sucesso:**: {chave:valor}
-- **Falha:**: Error
+A chave e o valor devem respeitar os tipos e limites definidos pelo protocolo. A chave não pode ser vazia. Não é necessário que a chave seja inédita, e valores iguais podem ser associados a chaves diferentes.
 
-6. Casos de borda
-- Valor de `valor` é inválido
-- Já existe uma chave atribuída a `valor`
+**Pós-condições**
 
-7. Invariantes
-- O valor de `valor` não deve ser alterado
-- A chave atribuída deve ser única
+Se a chave não existia, uma nova associação é criada. Se já existia, seu valor anterior é substituído integralmente. Nenhuma outra chave é modificada.
 
-8. Critérios de aceitação
-- [ ] O `valor` de input é uma string, retorna erro caso seja outro tipo de dado
-- [ ] O retorno é uma tupla `{chave: valor}`
-- [ ] Caso já existe uma chave atrelada ao `valor`, o retorno é um erro explícito: "Já existe chave atrelada a esse valor"
+**Resposta**
+
+Em caso de sucesso, retorna uma confirmação `OK`. Se os argumentos forem inválidos, retorna um erro explícito e mantém o estado anterior.
+
+**Casos de borda**
+
+O contrato deve cobrir valor vazio, chave já existente, duas chaves com o mesmo valor, ausência de argumentos, argumentos excedentes e chave ou valor acima dos limites permitidos.
+
+**Invariantes**
+
+Existe no máximo um valor atual para cada chave. Um valor pode aparecer em várias chaves. Depois de uma resposta de sucesso, um `GET` da mesma chave deve devolver o novo valor.
+
+**Critérios de aceitação**
+
+Uma chave inexistente é criada. Uma chave existente é sobrescrita. Duas chaves podem armazenar o mesmo valor. Entradas inválidas produzem erro sem alterar o armazenamento.
+
+### RF-02 — GET chave
+
+**Descrição**
+
+Recupera o valor atualmente associado à chave informada.
+
+**Entrada**
+
+Recebe exatamente uma chave.
+
+**Pré-condições**
+
+A chave deve respeitar o tipo e os limites definidos pelo protocolo. A chave não precisa existir.
+
+**Pós-condições**
+
+O armazenamento não é alterado.
+
+**Resposta**
+
+Se a chave existir, retorna seu valor integral, inclusive quando esse valor for uma string vazia. Se não existir, retorna uma representação específica de valor ausente. Essa representação deve ser diferente de uma string vazia. Entradas inválidas retornam erro.
+
+**Casos de borda**
+
+O contrato deve distinguir chave inexistente de chave com valor vazio e deve cobrir ausência ou excesso de argumentos.
+
+**Invariantes**
+
+O comando nunca cria, remove ou altera uma chave. Chamadas repetidas produzem o mesmo resultado enquanto nenhum comando de escrita modificar a chave.
+
+**Critérios de aceitação**
+
+Uma chave existente devolve exatamente o valor armazenado. Uma chave inexistente devolve o marcador de ausência. A consulta não modifica o número de chaves nem seus valores.
+
+### RF-03 — DEL chave
+
+**Descrição**
+
+Remove do armazenamento a chave informada e o valor associado a ela.
+
+**Entrada**
+
+Recebe exatamente uma chave.
+
+**Pré-condições**
+
+A chave deve respeitar o tipo e os limites do protocolo. A existência prévia da chave não é obrigatória.
+
+**Pós-condições**
+
+Se a chave existia, ela deixa de existir. Se não existia, o armazenamento permanece inalterado.
+
+**Resposta**
+
+Retorna `1` quando uma chave foi removida e `0` quando a chave já não existia. Entradas inválidas retornam erro sem alterar o armazenamento.
+
+**Casos de borda**
+
+O contrato deve cobrir remoção de chave inexistente, remoções repetidas e argumentos ausentes ou excedentes.
+
+**Invariantes**
+
+Nenhuma chave diferente daquela informada é modificada. Depois de uma remoção bem-sucedida, `GET` deve indicar ausência e `EXISTS` deve retornar `0`.
+
+**Critérios de aceitação**
+
+Remover uma chave existente retorna `1` e elimina a associação. Remover uma chave inexistente retorna `0`, sem erro. Uma segunda remoção da mesma chave retorna `0`.
+
+### RF-04 — EXISTS chave
+
+**Descrição**
+
+Informa se a chave está presente no armazenamento.
+
+**Entrada**
+
+Recebe exatamente uma chave.
+
+**Pré-condições**
+
+A chave deve respeitar o tipo e os limites definidos pelo protocolo.
+
+**Pós-condições**
+
+O armazenamento não é alterado.
+
+**Resposta**
+
+Retorna `1` se a chave existir e `0` se não existir. Entradas inválidas retornam erro.
+
+**Casos de borda**
+
+Uma chave com valor vazio continua sendo considerada existente. O contrato também deve cobrir ausência e excesso de argumentos.
+
+**Invariantes**
+
+O comando nunca cria, remove ou altera chaves. Após um `SET` bem-sucedido, retorna `1`; após um `DEL` que removeu a chave, retorna `0`.
+
+**Critérios de aceitação**
+
+Chaves existentes retornam `1`, inclusive quando armazenam valor vazio. Chaves inexistentes retornam `0`. A execução não modifica o armazenamento.
 
 ## Requisitos não funcionais
 
