@@ -4,16 +4,25 @@ A from-scratch Redis-inspired key-value server built to study networking, storag
 # Perguntas e respostas (Issue 1)
 
 ## O que é o Redis antes de mais nada?
-O Redis é uma espécie de banco de dados, que usa uma relação chave-valor para fazer o armazenamento de informações. O grande ponto do Redis é que ele é bem rápido, por conta da estrutura chave-valor (se eu sei a chave, faço um busca em O(1)), então na prática a comunidade usa o serviço para administrar cache majoritariamente. Isso faz sentido, a partir do momento que eu realizo um busca no banco de dados e julgo ela como reccorente, ou seja, entendo que vou ir atrás desse mesmo dado outras vezes, por definição faz sentido ter uma estrutura de cache na aplicação, onde para aquele conjunto de dados eu linko uma chave. A partir do momento em que o cache está preenchido e válido, eu paro de bater no banco de dados e bato direto no Redis via chave.
+O Redis é um servidor de estruturas de dados que mantém informações principalmente em memória. Entre seus usos mais comuns está o cache, pois a busca por uma chave em uma tabela hash possui complexidade O(1) em média. Com isso, uma aplicação pode evitar consultas repetidas à sua fonte de dados principal enquanto o conteúdo do cache permanecer válido.
 
-O Redis trabalha com um sistema de mensegeria, então eu consigo fazer diversas pessoas ouvirem uma mesma mensagem. O processo de replication é built-in (algo que vamos precisar criar também eu imagino)
+O Redis real também oferece funcionalidades como Pub/Sub, replicação e diferentes estruturas de dados. Essas funcionalidades ajudam a entender o produto original, mas não fazem parte do escopo da primeira versão do mini-redis.
 
-O Redis utiliza armazenamento em memória, que se diferem basicamente na volatilidade, os dados em memória morrem quando o PC é desligado, enquanto o armazenamento em disco é persistente. Se pensarmos no objetivo de cache, não faz sentido armazenar os dados cacheados em disco, então o fato do Redis utilizar armazenamento em memória melhora ainda mais a situação. No caso os dados armazenados no Redis existem enquanto o serviço estiver de pé, se derrubamos o Redis (ou o Docker que está mantendo o Redis de pé) os dados não persistem.
+Embora trabalhe principalmente em memória, o Redis real pode persistir dados por meio de mecanismos como RDB e AOF. A perda de todo o estado ao encerrar o processo é uma decisão específica do mini-redis v1, e não uma limitação geral do Redis.
 
 A ideia de implementar na mão algo dessa linha é voltar a aprender sobre as questões mais estruturais da engenharia de software, seja voltar a discutir sobre protocolos de comunicação, uso de memória, tempo computacional, perguntas que desenvolvem a senioridade.
 
 ## Objetivos do projeto
-Realizar uma implementação nativa inspirada no Redis, recriando as principais funcionalidades do serviço de forma manual. Queremos implementar a lógica chave-valor, o uso de memória, protocolos de comunicação, persistência, entre outros atributos técnicos
+Realizar uma implementação manual inspirada no Redis para estudar armazenamento chave-valor, uso de memória, protocolos de comunicação e concorrência. Funcionalidades como persistência e replicação poderão ser estudadas em fases futuras, mas não fazem parte da v1.
+
+## Escopo mínimo da v1
+
+- Servidor acessível por uma conexão TCP persistente.
+- Suporte aos comandos `SET`, `GET`, `DEL` e `EXISTS`.
+- Chaves e valores representados como strings UTF-8.
+- Armazenamento exclusivamente em memória.
+- Perda de todo o estado quando o processo for encerrado.
+- Suporte a múltiplas conexões de clientes, sem exigir paralelismo na execução dos comandos.
 
 ## Requisitos funcionais
 SET chave valor -> cria e armazena um valor associado a uma chave
@@ -28,14 +37,13 @@ GET usuario:1
 -> "Fulano"
 
 EXISTS usuario:1
-→ true
+→ 1
 
 DEL usuario:1
 GET usuario:1
 → chave inexistente
 ```
 
-em uma sessão posterior vou definir com mais calma os contratos de cada requisito funcional
 
 ### Premissas comuns dos contratos
 
@@ -222,12 +230,11 @@ Chaves existentes retornam `1`, inclusive quando armazenam valor vazio. Chaves i
 ## Requisitos não funcionais
 
 ### Comunicação
-A comunicação entre cliente e servidor será feita por meio de um protocolo TCP, que já é o mais coerente para uma aplicação que imita um Redis, como é isso que estamos fazendo aqui, seguiremos essa lógica. A pergunta que fica então é porque TCP é o mais adequado, vamos discorrer sobre algumas caracterísiticas do protocolo que corroboram com esse ponto:
-- O TCP garante uma coordenação de transmissão dos bytes de acordo com o solicitado pelo cliente, então se eu envio uma sequência de comandos ao Redis, consigo garantir que eles vão ser executados na mesma ordem que eu enviei
-- A lógica de checksum do TCP garante confiabilidade na transmissão dentro da rede, tentando recuperar os dados por restransmissão caso algo se perca no meio do caminho
-- O TCP permite uma conexão persistente, então podemos manter um túnel entre Redis <-> TCP de forma contínua, economizando assim o custo computacional e a latência que seria abrir uma nova conexão a cada nova chamada ao banco
+A comunicação entre cliente e servidor será feita por TCP. O protocolo entrega um fluxo ordenado de bytes dentro de cada conexão, detecta perdas durante a transmissão e realiza retransmissões quando necessário. Isso não determina, por si só, a ordem global de execução dos comandos: o mini-redis será responsável por processar corretamente as requisições recebidas de cada cliente.
 
-A grande questão na comunicação vai ser implementar um framing na recepção dos dados, pois o TCP vai enviando os bytes sem diferenciar o que é cada resposta, no sentido que não existe uma distinção ou pausa entre a resposta de duas requisições diferentes
+As conexões poderão permanecer abertas para evitar o custo de estabelecer uma nova conexão a cada comando.
+
+Como o TCP não preserva fronteiras entre mensagens, o mini-redis precisará implementar framing para identificar onde cada comando começa e termina, inclusive quando uma mensagem chegar fragmentada ou quando várias mensagens chegarem juntas.
 
 ### Concorrência
 O TCP permite que tenhamos diversas conexões simultâneas, mas quem vai precisar cuidar da concorrência delas é o nosso querido homemade Redis.
@@ -235,7 +242,11 @@ Evidentemente que queremos conseguir lidar com requisições simultâneas, a per
 A ideia é que o Redis mantém conexão aberta com diversos clientes, e o sistema operacional avisa o Redis quando algum socket está pronto para leitura ou escrita. Mesmo com só um thread alocado, o que não permite que realizemos paralelismo, conseguimos administrar diversas conexões abertas simultaneamente
 
 ### Persistência
-A ideia central do Redis é ser usado como sistema de cache pela velocidade que é fazer uma operação de leitura em um banco chave-valor. Mas a partir do momento que o serviço do Redis é derrubado, não há necessidade dele ser responsável pela persistência dos dados, até porque o Redis utiliza armazenamento de memória. A ideia então é que a priori a persistência não deve sobreviver ao encerramento do processo, o que entendo como lógico é ter uma camada de banco de dados estruturada (um PostgresSQL da vida) que vai garantir persistência, antes do nosso querido mini-redis ser derrubado, escrevemos no banco o que temos no cache alterado
+A v1 armazenará chaves e valores exclusivamente em memória. Todo o estado será perdido quando o processo for encerrado.
+
+O mini-redis não salvará o cache em arquivos nem tentará sincronizá-lo com PostgreSQL ou outro banco de dados durante o desligamento. Aplicações que utilizarem o mini-redis continuarão responsáveis por manter sua própria fonte de dados persistente.
+
+Persistência poderá ser estudada em uma fase futura e exigirá uma nova decisão técnica. O contexto, as alternativas e as consequências dessa escolha estão registrados em `docs/engineering-journal.md`.
 
 ### Performance
 O Mini Redis deverá ser desenvolvido buscando baixa latência na execução de operações sobre dados armazenados em memória.
@@ -267,11 +278,14 @@ As metas de latência e throughput serão avaliadas no cenário de 50 clientes e
 **Observação:** os valores são objetivos experimentais, não requisitos bloqueantes da primeira versão. Serão revisados após a obtenção dos primeiros benchmarks.
 
 ## O que está fora de escopo
+- Persistência em disco ou sincronização com um banco de dados externo
 - Replicação entre servidores
 - Clusterização
+- Pub/Sub e mensageria
 - Autenticação e autorização
 - Estruturas complexas como listas e sorted sets
 - Compatibilidade completa com todas as funcionalidades do Redis
+
 ## Exercício educacional versus software de produção
 
 ### Pergunta de pesquisa
