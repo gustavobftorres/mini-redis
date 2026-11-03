@@ -49,37 +49,73 @@ Os limites máximos de tamanho de chave e valor deverão ser definidos junto com
 
 ### RF-01 — SET chave valor
 
-**Descrição**
+#### 1. Descrição
 
-Associa o valor informado à chave informada.
+O comando associa o valor informado à chave informada.
 
-**Entrada**
+Quando a chave ainda não existe, uma nova associação é criada. Quando a chave já existe, seu valor anterior é substituído.
 
-Recebe uma chave e um valor, ambos fornecidos pelo cliente.
+#### 2. Entrada
 
-**Pré-condições**
+O comando recebe dois parâmetros:
 
-A chave e o valor devem respeitar os tipos e limites definidos pelo protocolo. A chave não pode ser vazia. Não é necessário que a chave seja inédita, e valores iguais podem ser associados a chaves diferentes.
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| chave | string | sim | Identificador usado para armazenar e recuperar o valor |
+| valor | string | sim | Conteúdo que será associado à chave |
 
-**Pós-condições**
+#### 3. Pré-condições
 
-Se a chave não existia, uma nova associação é criada. Se já existia, seu valor anterior é substituído integralmente. Nenhuma outra chave é modificada.
+- A chave deve ser uma string válida e não pode ser vazia.
+- O valor deve ser uma string válida.
+- A chave e o valor devem respeitar os limites de tamanho definidos pelo protocolo.
+- A existência prévia da chave não impede a operação.
+- O mesmo valor pode estar associado a diferentes chaves.
 
-**Resposta**
+#### 4. Pós-condições
 
-Em caso de sucesso, retorna uma confirmação `OK`. Se os argumentos forem inválidos, retorna um erro explícito e mantém o estado anterior.
+- Se a chave não existia, uma nova associação é criada.
+- Se a chave já existia, seu valor anterior é substituído.
+- Depois do sucesso, uma consulta à chave deve retornar o novo valor.
+- Nenhuma outra chave deve ser modificada.
 
-**Casos de borda**
+#### 5. Resposta
 
-O contrato deve cobrir valor vazio, chave já existente, duas chaves com o mesmo valor, ausência de argumentos, argumentos excedentes e chave ou valor acima dos limites permitidos.
+- **Sucesso:** retorna `OK`.
+- **Falha:** retorna um erro explícito e não altera o armazenamento.
 
-**Invariantes**
+Podem provocar falha:
 
-Existe no máximo um valor atual para cada chave. Um valor pode aparecer em várias chaves. Depois de uma resposta de sucesso, um `GET` da mesma chave deve devolver o novo valor.
+- Ausência da chave ou do valor.
+- Quantidade incorreta de argumentos.
+- Chave vazia.
+- Tipo de entrada inválido.
+- Chave ou valor acima do limite permitido.
 
-**Critérios de aceitação**
+#### 6. Casos de borda
 
-Uma chave inexistente é criada. Uma chave existente é sobrescrita. Duas chaves podem armazenar o mesmo valor. Entradas inválidas produzem erro sem alterar o armazenamento.
+- Criação de uma chave inexistente.
+- Sobrescrita de uma chave existente.
+- Armazenamento de um valor vazio.
+- Duas chaves diferentes contendo o mesmo valor.
+- Tentativa de usar uma chave vazia.
+- Entrada acima do limite permitido.
+
+#### 7. Invariantes
+
+- Cada chave possui no máximo um valor atual.
+- Um mesmo valor pode estar associado a várias chaves.
+- A operação é atômica: outros clientes não podem observar um estado intermediário.
+- Em caso de erro, o estado anterior permanece inalterado.
+
+#### 8. Critérios de aceitação
+
+- Uma chave inexistente é criada com o valor informado.
+- Uma chave existente tem seu valor substituído.
+- Duas chaves diferentes podem conter o mesmo valor.
+- O sucesso retorna `OK`.
+- Entradas inválidas retornam erro sem modificar o armazenamento.
+- Após o sucesso, `GET` para a mesma chave retorna o novo valor.
 
 ### RF-02 — GET chave
 
@@ -236,3 +272,44 @@ As metas de latência e throughput serão avaliadas no cenário de 50 clientes e
 - Autenticação e autorização
 - Estruturas complexas como listas e sorted sets
 - Compatibilidade completa com todas as funcionalidades do Redis
+## Exercício educacional versus software de produção
+
+### Pergunta de pesquisa
+
+Quais são os trade-offs entre implementar um exercício e projetar software de produção?
+
+### Resposta
+
+Um exercício educacional é otimizado para aprendizado, enquanto um software de produção é otimizado para resolver um problema real com segurança, confiabilidade e custo operacional aceitável.
+
+No mini-redis, implementar manualmente partes como protocolo TCP, framing, armazenamento em memória e controle de concorrência aumenta o valor educacional do projeto. Em um sistema de produção, provavelmente seria mais adequado utilizar bibliotecas e soluções já testadas, porque uma implementação manual aumenta o risco de erros, vulnerabilidades e comportamentos inesperados.
+
+Outra diferença é o escopo. Como exercício, o mini-redis pode suportar apenas os comandos `SET`, `GET`, `DEL` e `EXISTS`, armazenar somente strings e perder todos os dados quando o processo for encerrado. Essas limitações permitem estudar os conceitos fundamentais sem introduzir prematuramente persistência, replicação, autenticação e clusterização.
+
+Em produção, essas limitações precisariam ser avaliadas de acordo com os requisitos do negócio. Poderiam ser necessários mecanismos de recuperação, limites de memória, autenticação, criptografia, métricas, logs, backups, alta disponibilidade e compatibilidade entre versões.
+
+Os critérios de qualidade também são diferentes. Em um exercício, uma implementação pode ser considerada bem-sucedida quando seu autor consegue explicar as decisões, os casos de falha e as alternativas consideradas. Em produção, compreender a implementação continua sendo importante, mas também é necessário demonstrar seu comportamento por meio de testes, monitoramento, objetivos de disponibilidade e procedimentos operacionais.
+
+O fato de ser um exercício não significa que os contratos possam ser ambíguos. Requisitos claros, testes e tratamento de erros continuam sendo necessários, pois fazem parte do aprendizado. A diferença é que o projeto pode escolher conscientemente não resolver determinados problemas, desde que essas limitações sejam documentadas.
+
+### Decisão aplicada ao mini-redis
+
+A primeira versão será tratada como uma implementação educacional, e não como uma alternativa ao Redis para uso em produção.
+
+Por isso:
+
+- As funcionalidades serão implementadas manualmente sempre que isso contribuir para o aprendizado.
+- A versão inicial terá somente os comandos `SET`, `GET`, `DEL` e `EXISTS`.
+- Chaves e valores serão armazenados apenas em memória.
+- O estado será perdido quando o processo for encerrado.
+- Persistência, replicação, clusterização, autenticação e estruturas complexas ficarão fora do escopo.
+- Os contratos dos comandos, os casos de erro e a concorrência serão definidos explicitamente.
+- As limitações encontradas durante o desenvolvimento serão registradas no journal.
+
+### Trade-off aceito
+
+Ao escolher uma implementação manual e um escopo reduzido, aceito que o mini-redis terá menos funcionalidades, desempenho potencialmente inferior e menor robustez que o Redis real.
+
+Em troca, obtenho maior compreensão sobre comunicação TCP, protocolos, estruturas de dados, concorrência, memória e decisões de arquitetura.
+
+Caso o projeto evolua para uso real, seus requisitos deverão ser reavaliados. As decisões tomadas para maximizar o aprendizado não devem ser automaticamente consideradas adequadas para produção.
