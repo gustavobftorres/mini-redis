@@ -13,11 +13,14 @@ def server(host="localhost", port=8001):
 
         with conn:
             print("Connected by", addr)
-            while True:
-                data = conn.recv(data_payload)
-                if not data:
-                    break
-                conn.sendall(data)
+            try:
+              while True:
+                  data = conn.recv(data_payload)
+                  if not data:
+                      break
+                  conn.sendall(data)
+            except OSError as e:
+              print(f"Connection error with {addr}: {e}")
 
 
 if __name__ == "__main__":
