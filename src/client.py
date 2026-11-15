@@ -1,4 +1,5 @@
 import socket
+from cmath import e
 
 
 def client(host="localhost", port=8002):
@@ -8,16 +9,19 @@ def client(host="localhost", port=8002):
 
     sock.connect((host, port))
     while True:
-        msg = input("Digite uma mensagem (ou 'sair' para encerrar):")
+        try:
+            msg = input("Digite uma mensagem (ou 'sair' para encerrar):")
 
-        if msg.lower() == "sair":
-            sock.detach()
-            break
+            if msg.lower() == "sair":
+                sock.close()
+                break
 
-        sock.sendall((msg + "\n").encode("utf-8"))
-        data = sock.recv(data_payload)
+            sock.sendall((msg + "\n").encode("utf-8"))
+            data = sock.recv(data_payload)
 
-        print("Received", repr(data))
+            print("Received", repr(data))
+        finally:
+            sock.close()
 
 
 if __name__ == "__main__":
