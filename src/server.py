@@ -1,7 +1,7 @@
 import socket
 
 
-def server(host="localhost", port=8001):
+def server(host="localhost", port=8002):
     data_payload = 2048
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -14,13 +14,16 @@ def server(host="localhost", port=8001):
         with conn:
             print("Connected by", addr)
             try:
-              while True:
-                  data = conn.recv(data_payload)
-                  if not data:
-                      break
-                  conn.sendall(data)
+                while True:
+                    data = conn.recv(data_payload)
+                    if not data:
+                        break
+                    if data.decode("utf-8") == "sair":
+                        sock.close()
+                        break
+                    conn.sendall(data)
             except OSError as e:
-              print(f"Connection error with {addr}: {e}")
+                print(f"Connection error with {addr}: {e}")
 
 
 if __name__ == "__main__":
