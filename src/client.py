@@ -23,12 +23,13 @@ def client(host="localhost", port=8002):
             while received_bytes < msg_bytes:
                 data = sock.recv(data_payload)
                 if not data:
-                  break
+                    break
                 received_bytes = received_bytes + len(data)
                 received_msg.append(data)
 
-            response = ("".join(received_msg))
-            print ('Received', response)
+            response_bytes = b"".join(received_msg)
+            response = response_bytes.decode("utf-8")
+            print("Received", response)
 
     finally:
         sock.close()
