@@ -20,13 +20,10 @@ def client(host="localhost", port=8002):
 
             sock.sendall((msg).encode("utf-8"))
             ## E se eu receber mais do que 2048 bytes?
-            data = sock.recv(data_payload)
             while received_bytes < msg_bytes:
+                data = sock.recv(data_payload)
                 received_bytes = received_bytes + len(data)
                 received_msg.append(data)
-                sock.recv(data_payload)
-
-            print("Received", repr(data))
 
     finally:
         sock.close()
