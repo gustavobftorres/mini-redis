@@ -1,5 +1,4 @@
 import socket
-import time
 
 
 def client(host="localhost", port=8002):
@@ -12,6 +11,7 @@ def client(host="localhost", port=8002):
         msg = input("Digite uma mensagem (ou 'sair' para encerrar):")
 
         if msg.lower() == "sair":
+            sock.detach()
             break
 
         sock.sendall((msg + "\n").encode("utf-8"))
