@@ -12,7 +12,6 @@ def client(host="localhost", port=8002):
         msg = input("Digite uma mensagem (ou 'sair' para encerrar):")
 
         if msg.lower() == "sair":
-            sock.sendall((msg + "\n").encode("utf-8"))
             break
 
         sock.sendall((msg + "\n").encode("utf-8"))

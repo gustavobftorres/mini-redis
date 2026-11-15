@@ -18,9 +18,6 @@ def server(host="localhost", port=8002):
                     data = conn.recv(data_payload)
                     if not data:
                         break
-                    if data.decode("utf-8") == "sair":
-                        sock.close()
-                        break
                     conn.sendall(data)
             except OSError as e:
                 print(f"Connection error with {addr}: {e}")
