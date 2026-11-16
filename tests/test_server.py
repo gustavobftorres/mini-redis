@@ -1,31 +1,20 @@
-import socket
+import subprocess
+import unittest
+
+from src.client import client
+from src.server import server
 
 
-def server(host, port):
-    data_payload = 2048
+class TestServerConnection(unittest.TestCase):
+    def setUp(self) -> None:
+        subprocess.Popen(server("localhost", 8002))
+        return super().setUp()
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    sock.bind((host, port))
-    conn, addr = sock.accept()
-
-    with conn:
-        print("Connected by", addr)
-        while True:
-            data = conn.recv(data_payload)
-            if not data:
-                break
-            conn.sendall(data)
+    def test_echo_short_message(self):
+        answer = "test message"
+        response = client("localhost", 8003, "test message")
+        self.assertEqual(answer, response)
 
 
-def client(host, port):
-  data_payload = 2048
-  
-  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-  sock.connect((host, port))
-  sock.sendall(b'Hello world')
-  data = sock.recv(data_payload)
-
-  print('Received', repr(data))
-
+if __name__ == "__main__":
+    unittest.main()
