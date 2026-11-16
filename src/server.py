@@ -1,7 +1,7 @@
 import socket
 
 
-def server(host="localhost", port=8002):
+def server(host="localhost", port=8003):
     data_payload = 2048
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -72,6 +72,7 @@ def client(host, port, msg):
 
         response = response_bytes.decode("utf-8")
         print("Received", response)
+        return response
 
     finally:
         sock.close()
