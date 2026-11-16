@@ -32,7 +32,7 @@ def client(host="localhost", port=8002):
               break
               
             response_bytes = b"".join(received_msg)
-            if response_bytes != msg_bytes:
+            if response_bytes != msg:
               print("The answer is not the same as sended message")
 
             response = response_bytes.decode("utf-8")
