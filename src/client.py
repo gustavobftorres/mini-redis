@@ -50,33 +50,29 @@ def client(host, port, msg):
     sock.connect((host, port))
 
     try:
-        while True:
-            received_bytes = 0
-            received_msg = []
-            msg_bytes = len(msg.encode("utf-8"))
+        received_bytes = 0
+        received_msg = []
+        msg_bytes = len(msg.encode("utf-8"))
 
-            if msg.lower() == "sair":
+        sock.sendall((msg).encode("utf-8"))
+        ## E se eu receber mais do que 2048 bytes?
+        while received_bytes < msg_bytes:
+            data = sock.recv(data_payload)
+            if not data:
                 break
+            received_bytes = received_bytes + len(data)
+            received_msg.append(data)
 
-            sock.sendall((msg).encode("utf-8"))
-            ## E se eu receber mais do que 2048 bytes?
-            while received_bytes < msg_bytes:
-                data = sock.recv(data_payload)
-                if not data:
-                    break
-                received_bytes = received_bytes + len(data)
-                received_msg.append(data)
+        if received_bytes != msg_bytes:
+            print("The answer is not complete")
 
-            if received_bytes != msg_bytes:
-                print("The answer is not complete")
-                break
+        response_bytes = b"".join(received_msg)
+        if response_bytes != msg.encode("utf-8"):
+            print("The answer is not the same as sended message")
 
-            response_bytes = b"".join(received_msg)
-            if response_bytes != msg.encode("utf-8"):
-                print("The answer is not the same as sended message")
-
-            response = response_bytes.decode("utf-8")
-            print("Received", response)
+        response = response_bytes.decode("utf-8")
+        print("Received", response)
 
     finally:
+        sock.close()
         print("Processo encerrado")
