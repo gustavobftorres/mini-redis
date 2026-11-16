@@ -27,9 +27,17 @@ def client(host="localhost", port=8002):
                 received_bytes = received_bytes + len(data)
                 received_msg.append(data)
 
+            if received_bytes != msg_bytes:
+              print("The answer is not complete")
+              break
+              
             response_bytes = b"".join(received_msg)
+            if response_bytes != msg_bytes:
+              print("The answer is not the same as sended message")
+
             response = response_bytes.decode("utf-8")
             print("Received", response)
+            
 
     finally:
         sock.close()
